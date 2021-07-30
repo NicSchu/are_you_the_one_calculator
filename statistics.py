@@ -1,11 +1,9 @@
 import random
 import timeit
+from tqdm import tqdm
 
 
 # Matching night
-from gui_kram import event_loop
-
-
 def get_number_of_beams(matches, solution):
     return len(list(filter(lambda p: p in solution, matches)))
 
@@ -55,71 +53,77 @@ def delete_impossible_combinations_after_matching_night(combinations, matching_n
     return list(filter(lambda c: common_members(c, matching_night_set, beams), combinations))
 
 
-def find_perfect_matches(males, females, solution, pre_knowledge=None):
-    combinations = []
-    get_all_possible_combinations(combinations, males, females, [])
-
-    # for i in range(1, 11):
+def find_perfect_matches(males, females, solution, combinations, pre_knowledge=None):
+    # combinations = []
+    # get_all_possible_combinations(combinations, males, females, [])
+    beam_count = 0
+    blackouts = 0
     i = 0
-    while len(combinations) > 1:
+    beams = 0
+    # while len(combinations) > 1:
+    while beams != 10:
         i += 1
-        print("%d.Runde: %d Kombinationen möglich" % (i, len(combinations)))
+        # print("%d.Runde: %d Kombinationen möglich" % (i, len(combinations)))
         truth_booth_pair = random.choice(random.choice(combinations))
         match = is_perfect_match(truth_booth_pair, solution)
         combinations = delete_impossible_combinations_after_truth_booth(combinations, truth_booth_pair, match)
 
         matching_night_pairs = random.choice(combinations)
         beams = get_number_of_beams(matching_night_pairs, solution)
+        beam_count += beams
+        if beams == 0:
+            blackouts += 1
         combinations = delete_impossible_combinations_after_matching_night(combinations, matching_night_pairs, beams)
-    return combinations.pop(), i
+    return combinations.pop(), i, beam_count, blackouts
 
 
 def statistic_runs(runs):
     males = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf']
     females = ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
     all_rounds = []
-    for i in range(runs):
+    beams = []
+    blackouts = []
+    combinations = []
+    get_all_possible_combinations(combinations, males, females, [])
+
+    for i in tqdm(range(runs), desc='Loading...'):
         pairs = get_random_pairs(males, females)
-        found_combination, rounds = find_perfect_matches(males, females, pairs)
-        print('Berechnete couples:')
-        print(found_combination)
-        print('Echte couples:')
-        print(pairs)
+        found_combination, rounds, beams_count, blackout_count = find_perfect_matches(males, females, pairs,
+                                                                                      combinations.copy())
+        # print('Berechnete couples:')
+        # print(found_combination)
+        # print('Echte couples:')
+        # print(pairs)
         all_rounds.append(rounds)
-        print(rounds)
-    mean_rounds = sum(all_rounds) / len(all_rounds)
-    print("In %d Durchläufen, wurde durchschnittlich in der %f. Runde die richtige Lösung gefunden"
-          % (runs, mean_rounds))
+        beams.append(beams_count)
+        blackouts.append(blackout_count)
+        # print(rounds)
+    mean_rounds = sum(all_rounds) / runs
+    mean_blackouts = sum(blackouts) / runs
+    beams_per_matching_night = (sum(beams) / 10) / runs
+    number_lost_games = len(list(filter(lambda r: r > 10, all_rounds)))
+    print("In %d Durchläufen, wurde durchschnittlich in der %f. Runde die richtige Lösung gefunden und in der "
+          "Matching Night gewonnen.\n"
+          "%f: Blackouts pro Spieldurchlauf\n"
+          "%f: Beams pro matching night\n"
+          "%d: Spiele wurden verloren\n"
+          "%d: Spiele wurden gewonnen"
+          % (runs, mean_rounds, mean_blackouts, beams_per_matching_night, number_lost_games, runs - number_lost_games))
 
 
-def get_possibilities(males, females, pre_knowledge):
+def get_possibilities(males, females):
     pairs = get_random_pairs(males, females)
-    found_combination, rounds = find_perfect_matches(males, females, pairs, pre_knowledge)
+    found_combination, rounds, beams, blackouts = find_perfect_matches(males, females, pairs, [])
     print('Berechnete couples:')
     print(found_combination)
     print('Echte couples:')
     print(pairs)
 
 
-def read_pre_given_info():
-    with open('input.txt') as f:
-        contents = f.readlines()
-
-    # for c in contents:
-    #     if c.startswith('-'):
-
-    males = []
-    females = []
-    pre_knowledge = contents
-    return males, females, pre_knowledge
-
-
 if __name__ == '__main__':
-    # start = timeit.default_timer()
+    start = timeit.default_timer()
     # males, females, pre_knowledge = read_pre_given_info()
-    # # statistic_runs(200)
-    # get_possibilities(males, females, pre_knowledge)
-    # stop = timeit.default_timer()
-    # print('Time: ', stop - start)
-
-    event_loop()
+    statistic_runs(200)
+    # get_possibilities(males, females)
+    stop = timeit.default_timer()
+    print('Time: ', stop - start)
