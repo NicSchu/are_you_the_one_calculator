@@ -1,7 +1,8 @@
 import PySimpleGUI as sg
+import json
 
 from Round import Round
-from calculations import calculate_possibilities
+from calculations import calculate_possibilities, rank_possible_couples, get_all_couples
 
 
 def get_pairs_overview(_round, _males_copy, _females_copy):
@@ -36,7 +37,7 @@ def get_round_layout(_round, _males, _females, col_size):
                [sg.Button("Save", size=(10, 1), pad=(35, (10, 5)), key='Save%d' % (_round - 1)),
                 sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate%d' % (_round - 1))]
            ]
-    output = [[sg.Multiline(key='OUT%d' % _round, size=(50, 28), pad=((10, 0), (20, 10)))]]
+    output = [[sg.Multiline(key='OUT%d' % _round, size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))]]
     return [[sg.Column(col1, size=col_size), sg.Column(output, size=col_size)]]
     # return col1
 
@@ -52,7 +53,7 @@ def get_main_layout(_males, _females, col_size):
                 for col in range(4)] for row in range(1, 11)]
     footer = [[sg.Button("Save", size=(10, 1), pad=(35, (10, 5)), key='Save'),
                sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate')]]
-    output = [[sg.Multiline(key='OUT0', size=(50, 28), pad=((10, 0), (20, 10)))]]
+    output = [[sg.Multiline(key='OUT0', size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))]]
     layout = [[sg.Column(header + content + footer, size=col_size), sg.Column(output, size=col_size)]]
     return layout
 
@@ -118,10 +119,37 @@ def close_input_fields(window):
     window['Save'].update(disabled=True)
 
 
-def update_outputs(window, text):
+def get_pretty_pair_print(pairs, ranked):
+    st = ''
+    for i in range(len(pairs)):
+        if ranked:
+            st += '%d. ' % (i+1)
+        st += '%s and %s\n' % (pairs[i][0], pairs[i][1])
+    return st
+
+
+def get_pretty_ranked_print(ranking, num_poss):
+    st = ''
+    for i in range(len(ranking)):
+        st += "%d. %s and %s (%f %%)\n" % (i + 1, ranking[i][0][0], ranking[i][0][1], (ranking[i][1] / num_poss) * 100)
+    return st
+
+
+def update_outputs(window, found_matches, impossible_matches, possible_combinations, couple_ranking):
+    text = '\n\n----------------------------------\n'
+    found = 'Matches found:\n' + get_pretty_pair_print(found_matches, True)
+    impossible = 'No Matches:\n' + get_pretty_pair_print(impossible_matches, True)
+    combs = 'Possible combinations left: ' + str(len(possible_combinations))
+    top_5_most_likely_matches = get_pretty_ranked_print(couple_ranking[0:5], len(possible_combinations))
+    top_5_least_likely_matches = get_pretty_ranked_print(couple_ranking[-5:], len(possible_combinations))
     for i in range(11):
-        window['OUT%d' % i]('')
-        window['OUT%d' % i].print(text, text_color='red', background_color='black')
+        # window['OUT%d' % i]('')
+        window['OUT%d' % i].print(text)
+        window['OUT%d' % i].print(found, text_color='green')
+        window['OUT%d' % i].print(impossible, text_color='red')
+        window['OUT%d' % i].print(combs, text_color='white')
+        window['OUT%d' % i].print(top_5_most_likely_matches, text_color='green')
+        window['OUT%d' % i].print(top_5_least_likely_matches, text_color='red')
 
 
 def save_rounds(event, values, rounds_dict, found_matches, impossible_matches, males, females):
@@ -129,14 +157,28 @@ def save_rounds(event, values, rounds_dict, found_matches, impossible_matches, m
     rounds_dict[round_num] = Round(round_num, values, males, females)
 
 
+def save_to_json(dictionary):
+    with open("save.txt", 'w') as file:
+        file.seek(0)
+        json.dump(dictionary, file)
+        file.truncate()
+
+
+def load_from_txt(window):
+    d = json.load(open("save.txt"))
+    for key, value in d.items():
+        window[key].update(value)
+
+
 def event_loop():
-    # males, females = ['' for _ in range(10)], ['' for _ in range(10)]
-    males, females = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf'],\
-                     ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
+    males, females = ['' for _ in range(10)], ['' for _ in range(10)]
+    # males, females = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf'],\
+    #                  ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
     possible_combinations = []
     rounds_dict = {}
     found_matches = []
     impossible_matches = []
+    all_couples = []
     # Window
     sg.theme('DarkAmber')
     # sg.theme_previewer()
@@ -152,26 +194,25 @@ def event_loop():
             reload_saved_data(window, males, females)
             if all_filled(males) and all_filled(females):
                 close_input_fields(window)
-                print(males)
-                print(females)
+                save_to_json(values)
             else:
                 sg.popup('There are missing candidates')
         elif event in ['Save%d' % i for i in range(10)]:
             save_rounds(event, values, rounds_dict, found_matches, impossible_matches, males, females)
+            save_to_json(values)
         elif event in ['Calculate%d' % i for i in range(10)] + ['Calculate']:
             possible_combinations, found_matches, impossible_matches = \
                 calculate_possibilities(rounds_dict, males, females)
-            update_outputs(window, '%d possible combinations left' % len(possible_combinations))
-            print('hallo')
-            print(found_matches)
-            print(impossible_matches)
-            print(len(possible_combinations))
+            # safe fixed couples in lists
+            all_couples = get_all_couples(males, females, impossible_matches, found_matches)
+            couple_ranking = rank_possible_couples(all_couples, possible_combinations, found_matches, impossible_matches)
+            update_outputs(window, found_matches, impossible_matches, possible_combinations, couple_ranking)
     window.close()
 
     # TODO:
-    # - save data to file or something else
-    # - calculate with given data
-    # - wahrscheinlichkeiten für bestimmte matches nach aktuellem Wissensstand: #kombinationen mit dem Paar/#kombinationen insgesamt
+    # - load data from file
+    # - wahrscheinlichkeiten für beliebiges match nach aktuellem Wissensstand
+    # - Perfect Matches automatisch eintragen
 
 
 if __name__ == '__main__':

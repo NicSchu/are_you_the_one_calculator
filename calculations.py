@@ -45,15 +45,40 @@ def evaluate_information(rounds_dict):
     return found_matches, impossible_matches, matching_nights
 
 
-def calculate_possibilities(rounds_dict, males, females):
-    found_matches, impossible_matches, matching_nights = evaluate_information(rounds_dict)
-    possible_combinations = []
+def get_males_females_without_found_matches(males, females, found_matches):
     males_copy = males.copy()
     females_copy = females.copy()
     for match in found_matches:
         males_copy.remove(match[0])
         females_copy.remove(match[1])
+    return males_copy, females_copy
+
+
+def calculate_possibilities(rounds_dict, males, females):
+    found_matches, impossible_matches, matching_nights = evaluate_information(rounds_dict)
+    possible_combinations = []
+    males_copy, females_copy = get_males_females_without_found_matches(males, females, found_matches)
     get_all_possible_combinations(possible_combinations, males_copy, females_copy, found_matches,
                                   impossible_matches, matching_nights)
     return possible_combinations, found_matches, impossible_matches
+
+
+def get_all_couples(males, females, impossible_couples, found_couples):
+    couples = []
+    males_wo_couples, females_wo_couples = get_males_females_without_found_matches(males, females, found_couples)
+    for m in males_wo_couples:
+        for f in females_wo_couples:
+            couple = [m, f]
+            if couple not in impossible_couples:
+                couples.append(couple)
+    return couples
+
+
+def rank_possible_couples(all_couples, possible_combinations, found_matches, impossible_matches):
+    couples = list(map(lambda c: [c, 0], all_couples))
+    for combination in possible_combinations:
+        for couple in couples:
+            if couple[0] in combination:
+                couple[1] += 1
+    return sorted(couples, key=lambda match: match[1], reverse=True)
 
