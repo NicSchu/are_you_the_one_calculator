@@ -1,7 +1,7 @@
 class Round:
     def __init__(self, num, _values, males, females):
         self.round_num = num
-        self.truth_booth_pair = [_values['tb%d-m' % num], _values['tb%d-m' % num]]
+        self.truth_booth_pair = [_values['tb%d-m' % num], _values['tb%d-f' % num]]
         self.is_truth_booth_match = _values['match_%d' % num]
         self.is_truth_booth_set = self.truth_booth_pair.count('') == 0
 

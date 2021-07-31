@@ -17,10 +17,10 @@ def get_pairs_overview(_round, _males_copy, _females_copy):
     return pairs
 
 
-def get_round_layout(_round, _males, _females):
+def get_round_layout(_round, _males, _females, col_size):
     _males_copy = list(filter(lambda m: len(m) > 0, _males))
     _females_copy = list(filter(lambda f: len(f) > 0, _females))
-    return [
+    col1 = [
                [sg.Text("%d. Round" % _round, size=(10, 2))],
                [sg.Text('Trooth booth:')],
                [sg.Combo(_males_copy, key='tb%d-m' % _round, size=(20, 1)),
@@ -36,9 +36,12 @@ def get_round_layout(_round, _males, _females):
                [sg.Button("Save", size=(10, 1), pad=(35, (10, 5)), key='Save%d' % (_round - 1)),
                 sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate%d' % (_round - 1))]
            ]
+    output = [[sg.Multiline(key='OUT%d' % _round, size=(50, 28), pad=((10, 0), (20, 10)))]]
+    return [[sg.Column(col1, size=col_size), sg.Column(output, size=col_size)]]
+    # return col1
 
 
-def get_main_layout(_males, _females):
+def get_main_layout(_males, _females, col_size):
     header = [
         [sg.Text("Please enter the names of the participants:")],
         [sg.Text('Males', size=(22, 1)), sg.Text('Females', size=(22, 1))],
@@ -49,7 +52,9 @@ def get_main_layout(_males, _females):
                 for col in range(4)] for row in range(1, 11)]
     footer = [[sg.Button("Save", size=(10, 1), pad=(35, (10, 5)), key='Save'),
                sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate')]]
-    return header + content + footer
+    output = [[sg.Multiline(key='OUT0', size=(50, 28), pad=((10, 0), (20, 10)))]]
+    layout = [[sg.Column(header + content + footer, size=col_size), sg.Column(output, size=col_size)]]
+    return layout
 
 
 def all_filled(_list):
@@ -57,10 +62,12 @@ def all_filled(_list):
 
 
 def get_layout(_males, _females):
+    col_size = (400, 550)
+
     return [
         [sg.TabGroup([[
-                          sg.Tab('Candidates', get_main_layout(_males, _females)),
-                      ] + [sg.Tab('Round %d' % r, get_round_layout(r, _males, _females)) for r in range(1, 11)]
+                          sg.Tab('Candidates', get_main_layout(_males, _females, col_size)),
+                      ] + [sg.Tab('Round %d' % r, get_round_layout(r, _males, _females, col_size)) for r in range(1, 11)]
                       ])
          ]
     ]
@@ -111,13 +118,21 @@ def close_input_fields(window):
     window['Save'].update(disabled=True)
 
 
+def update_outputs(window, text):
+    for i in range(11):
+        window['OUT%d' % i]('')
+        window['OUT%d' % i].print(text, text_color='red', background_color='black')
+
+
 def save_rounds(event, values, rounds_dict, found_matches, impossible_matches, males, females):
     round_num = int(event[-1]) + 1
     rounds_dict[round_num] = Round(round_num, values, males, females)
 
 
 def event_loop():
-    males, females = ['' for i in range(10)], ['' for i in range(10)]
+    # males, females = ['' for _ in range(10)], ['' for _ in range(10)]
+    males, females = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf'],\
+                     ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
     possible_combinations = []
     rounds_dict = {}
     found_matches = []
@@ -142,11 +157,15 @@ def event_loop():
             else:
                 sg.popup('There are missing candidates')
         elif event in ['Save%d' % i for i in range(10)]:
-            print('hallo')
             save_rounds(event, values, rounds_dict, found_matches, impossible_matches, males, females)
         elif event in ['Calculate%d' % i for i in range(10)] + ['Calculate']:
-            calculate_possibilities(rounds_dict, found_matches, impossible_matches, possible_combinations, males, females)
-            print('Das Rechnen möge beginnen')
+            possible_combinations, found_matches, impossible_matches = \
+                calculate_possibilities(rounds_dict, males, females)
+            update_outputs(window, '%d possible combinations left' % len(possible_combinations))
+            print('hallo')
+            print(found_matches)
+            print(impossible_matches)
+            print(len(possible_combinations))
     window.close()
 
     # TODO:
