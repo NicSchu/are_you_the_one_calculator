@@ -86,7 +86,7 @@ def statistic_runs(runs):
     combinations = []
     get_all_possible_combinations(combinations, males, females, [])
 
-    for i in tqdm(range(runs), desc='Loading...'):
+    for _ in tqdm(range(runs), desc='Loading...'):
         pairs = get_random_pairs(males, females)
         found_combination, rounds, beams_count, blackout_count = find_perfect_matches(males, females, pairs,
                                                                                       combinations.copy())

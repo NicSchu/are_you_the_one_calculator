@@ -74,11 +74,13 @@ def get_all_couples(males, females, impossible_couples, found_couples):
     return couples
 
 
-def rank_possible_couples(all_couples, possible_combinations, found_matches, impossible_matches):
+def rank_possible_couples(all_couples, possible_combinations):
     couples = list(map(lambda c: [c, 0], all_couples))
     for combination in possible_combinations:
         for couple in couples:
             if couple[0] in combination:
                 couple[1] += 1
-    return sorted(couples, key=lambda match: match[1], reverse=True)
+    ranked = sorted(couples, key=lambda match: match[1], reverse=True)
+    found_impossible_matches = list(filter(lambda c: c[1] == 0, ranked))
+    return ranked[:-len(found_impossible_matches)], found_impossible_matches
 

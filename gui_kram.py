@@ -1,5 +1,6 @@
 import PySimpleGUI as sg
 import json
+import os.path
 
 from Round import Round
 from calculations import calculate_possibilities, rank_possible_couples, get_all_couples
@@ -52,7 +53,8 @@ def get_main_layout(_males, _females, col_size):
                               size=(20, 1), key='%s-%d' % ('m' if col == 1 else 'f', row), pad=(5, 8))
                 for col in range(4)] for row in range(1, 11)]
     footer = [[sg.Button("Save", size=(10, 1), pad=(35, (10, 5)), key='Save'),
-               sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate')]]
+               sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate')],
+              [sg.Button("Load", size=(10, 1), key='Load')]]
     output = [[sg.Multiline(key='OUT0', size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))]]
     layout = [[sg.Column(header + content + footer, size=col_size), sg.Column(output, size=col_size)]]
     return layout
@@ -74,6 +76,7 @@ def get_layout(_males, _females):
     ]
 
 
+# ----------------------------------------------------
 def get_candidates(_values):
     _males = []
     _females = []
@@ -164,10 +167,12 @@ def save_to_json(dictionary):
         file.truncate()
 
 
-def load_from_txt(window):
+def load_from_json(window):
     d = json.load(open("save.txt"))
     for key, value in d.items():
+        # FIXME: load to text fields does not work (radio buttons, slider, inputs and dropdowns already work!)
         window[key].update(value)
+    return d
 
 
 def event_loop():
@@ -205,8 +210,13 @@ def event_loop():
                 calculate_possibilities(rounds_dict, males, females)
             # safe fixed couples in lists
             all_couples = get_all_couples(males, females, impossible_matches, found_matches)
-            couple_ranking = rank_possible_couples(all_couples, possible_combinations, found_matches, impossible_matches)
+            couple_ranking, more_impossible_matches = rank_possible_couples(all_couples, possible_combinations)
+            impossible_matches += more_impossible_matches
             update_outputs(window, found_matches, impossible_matches, possible_combinations, couple_ranking)
+        elif event == 'Load':
+            # file walker -> chose file to save and to load from
+            if os.path.isfile("save.txt"):
+                rounds_dict = load_from_json(window)
     window.close()
 
     # TODO:
