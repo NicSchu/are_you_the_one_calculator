@@ -54,7 +54,7 @@ def get_main_layout(_males, _females, col_size):
                 for col in range(4)] for row in range(1, 11)]
     footer = [[sg.Button("Save", size=(10, 1), pad=(35, (10, 5)), key='Save'),
                sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate')],
-              [sg.Button("Load", size=(10, 1), key='Load')]]
+              [sg.Button("Load", size=(10, 1), key='Load', disabled=True)]]
     output = [[sg.Multiline(key='OUT0', size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))]]
     layout = [[sg.Column(header + content + footer, size=col_size), sg.Column(output, size=col_size)]]
     return layout
@@ -71,6 +71,7 @@ def get_layout(_males, _females):
         [sg.TabGroup([[
                           sg.Tab('Candidates', get_main_layout(_males, _females, col_size)),
                       ] + [sg.Tab('Round %d' % r, get_round_layout(r, _males, _females, col_size)) for r in range(1, 11)]
+                      + [sg.Text('Version 0.9')]
                       ])
          ]
     ]
