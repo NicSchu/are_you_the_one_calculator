@@ -12,8 +12,8 @@ def get_pairs_overview(_round, _males_copy, _females_copy):
               sg.Text(_females_copy[i - 1] if females_first and len(_females_copy) > i else _males_copy[i - 1]
               if not females_first and len(_males_copy) > i else '',
                       key='mn%d-%s%d' % (_round, 'f' if females_first else 'm', i), size=(20, 1)),
-              sg.Combo(_males_copy if females_first else _females_copy,
-                       key='mn%d-%s%d' % (_round, 'm' if females_first else 'f', i), size=(20, 1))
+              sg.Combo([''] + _males_copy if females_first else [''] + _females_copy,
+                       key='mn%d-%s%d' % (_round, 'm' if females_first else 'f', i), size=(20, 1), enable_events=True)
               ]
              for i in range(1, 11)]
     return pairs
@@ -57,10 +57,11 @@ def get_main_layout(_males, _females, col_size):
         [
             sg.Multiline(key='OUT0', size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))
         ], [
-            sg.FileSaveAs("Save to File", size=(10, 1), pad=(35, (10, 5)), key='SaveFile',
+            sg.FileSaveAs("Save to File", size=(10, 1), pad=(20, (10, 5)), key='SaveFile',
                           file_types=(("Text File", "*.txt"),), enable_events=True, target='SaveFile'),
-            sg.FileBrowse("Load from File", size=(10, 1), pad=(35, (10, 5)), key='Load', initial_folder='./',
-                          file_types=(("Text File", "*.txt"),), enable_events=True, target='Load')
+            sg.FileBrowse("Load from File", size=(10, 1), pad=(20, (10, 5)), key='Load', initial_folder='./',
+                          file_types=(("Text File", "*.txt"),), enable_events=True, target='Load'),
+            sg.Button("Clear All", size=(10, 1), pad=(20, (10, 5)), key='Clear')
         ]]
     layout = [[sg.Column(header + content + footer, size=col_size), sg.Column(output, size=col_size)]]
     return layout
@@ -77,7 +78,7 @@ def get_layout(_males, _females):
         [sg.TabGroup([[
                           sg.Tab('Candidates', get_main_layout(_males, _females, col_size)),
                       ] + [sg.Tab('Round %d' % r, get_round_layout(r, _males, _females, col_size)) for r in range(1, 11)]
-                      + [sg.Text('Version 0.9')]
+                      + [sg.Text('Version ' + version)]
                       ], key="tab")
          ]
     ]
@@ -93,14 +94,32 @@ def get_candidates(_values):
     return _males, _females
 
 
+def update_dropdowns(window, event, males, females, values):
+    base = event[:-1]
+    if base[-1] == '1':
+        base = base[:-1]
+    chosen = []
+    for i in range(1, 11):
+        person = values[base + str(i)]
+        if person != '':
+            chosen.append(person)
+    new_values = [x for x in (males if base[-1] == 'm' else females) if x not in chosen]
+
+    for i in range(1, 11):
+        field_name = base + str(i)
+        value = values[field_name]
+        window[field_name].update(values=[''] + new_values)
+        window[field_name].update(value)
+
+
 def reload_saved_data(window, males, females):
     _males_copy = list(filter(lambda m: len(m) > 0, males))
     _females_copy = list(filter(lambda f: len(f) > 0, females))
     for i in range(1, 11):
         tb_key_m = 'tb%d-m' % i
         tb_key_f = 'tb%d-f' % i
-        window[tb_key_m].update(values=_males_copy)
-        window[tb_key_f].update(values=_females_copy)
+        window[tb_key_m].update(values=[''] + _males_copy)
+        window[tb_key_f].update(values=[''] + _females_copy)
         base_mn_key = 'mn%d-' % i
         for j in range(1, 11):
             mn_key_m = base_mn_key + 'm' + str(j)
@@ -109,12 +128,12 @@ def reload_saved_data(window, males, females):
             if i % 2 == 1:
                 field_value = _females_copy[j - 1] if len(_females_copy) > j - 1 else ''
                 window[mn_key_f].update(field_value)
-                window[mn_key_m].update(values=_males_copy)
+                window[mn_key_m].update(values=[''] + _males_copy)
             # men's choice
             else:
                 field_value = _males_copy[j - 1] if len(_males_copy) > j - 1 else ''
                 window[mn_key_m].update(field_value)
-                window[mn_key_f].update(values=_females_copy)
+                window[mn_key_f].update(values=[''] + _females_copy)
 
 
 def new_window(males, females):
@@ -134,7 +153,7 @@ def get_pretty_pair_print(pairs, ranked):
     for i in range(len(pairs)):
         if ranked:
             st += '%d. ' % (i+1)
-        st += '%s and %s\n' % (pairs[i][0][0], pairs[i][0][1])
+        st += '%s and %s\n' % (pairs[i][0], pairs[i][1])
     return st
 
 
@@ -150,21 +169,42 @@ def update_outputs(window, found_matches, impossible_matches, possible_combinati
     found = 'Matches found:\n' + get_pretty_pair_print(found_matches, True)
     impossible = 'No Matches:\n' + get_pretty_pair_print(impossible_matches, True)
     combs = 'Possible combinations left: ' + str(len(possible_combinations))
-    top_5_most_likely_matches = get_pretty_ranked_print(couple_ranking[0:5], len(possible_combinations))
-    top_5_least_likely_matches = get_pretty_ranked_print(couple_ranking[-5:], len(possible_combinations))
+    top_most_likely_matches = get_pretty_ranked_print(couple_ranking[0:10], len(possible_combinations))
+    top_least_likely_matches = get_pretty_ranked_print(couple_ranking[-10:], len(possible_combinations))
     for i in range(11):
         # window['OUT%d' % i]('')
         window['OUT%d' % i].print(text)
         window['OUT%d' % i].print(impossible, text_color='red')
         window['OUT%d' % i].print(found, text_color='green')
         window['OUT%d' % i].print(combs, text_color='white')
-        window['OUT%d' % i].print(top_5_most_likely_matches, text_color='green')
-        window['OUT%d' % i].print(top_5_least_likely_matches, text_color='red')
+        window['OUT%d' % i].print(top_most_likely_matches, text_color='green')
+        if len(possible_combinations) != 1:
+            window['OUT%d' % i].print(top_least_likely_matches, text_color='red')
 
 
-def save_rounds(event, values, rounds_dict, found_matches, impossible_matches, males, females):
-    round_num = int(event[-1]) + 1
-    rounds_dict[round_num] = Round(round_num, values, males, females)
+def save_round(round_num, values, rounds_dict, found_matches, impossible_matches, males, females, window):
+    saved_round = Round(round_num, values, males, females)
+    rounds_dict[round_num] = saved_round
+    if saved_round.is_truth_booth_match:
+        found_matches.append(saved_round.truth_booth_pair)
+        for i in range(round_num, 11):
+            # if i in rounds_dict.keys() &&
+            base = 'mn%d-' % i
+            for j in range(1, 11):
+                m_string = base + 'm%d' % j
+                f_string = base + 'f%d' % j
+                if i % 2 == 0 and males[j-1] in saved_round.truth_booth_pair and values[f_string] == '':
+                    female = [p for p in saved_round.truth_booth_pair if p != males[j-1]][0]
+                    values[f_string] = female
+                    window[f_string].update(female)
+                    update_dropdowns(window, f_string, males, females, values)
+                elif i % 2 == 1 and females[j-1] in saved_round.truth_booth_pair and values[m_string] == '':
+                    male = [p for p in saved_round.truth_booth_pair if p != females[j-1]][0]
+                    values[m_string] = male
+                    window[m_string].update(male)
+                    update_dropdowns(window, m_string, males, females, values)
+    else:
+        impossible_matches.append(saved_round.truth_booth_pair)
 
 
 def save_to_json(dictionary):
@@ -178,22 +218,49 @@ def save_to_json(dictionary):
             file.truncate()
 
 
-def load_from_json(window, file):
+def load_candidates(window, d, fields):
+    candidates = []
+    for field in fields:
+        candidate = d[field]
+        del d[field]
+        window[field].update(candidate)
+        candidates.append(candidate)
+    return candidates
+
+
+def load_males_and_females(window, d):
+    m_fields = ['m-%d' % x for x in range(1, 11)]
+    f_fields = ['f-%d' % x for x in range(1, 11)]
+    return load_candidates(window, d, m_fields), load_candidates(window, d, f_fields)
+
+
+def load_from_json(window, file, values):
     d = json.load(open(file))
+    males, females = load_males_and_females(window, d)
+
+    reload_saved_data(window, males, females)
+    if all_filled(males) and all_filled(females):
+        close_input_fields(window)
+
+    candidate_fields = ['%s-%d' % (mf, x) for x in range(1, 11) for mf in ['m', 'f']]
     for key, value in d.items():
-        if key not in ['SaveFile', 'Load']:
+        if key in values:
+            values[key] = value
+        if key not in ['SaveFile', 'Load'] + candidate_fields:
             window[key].update(value)
-    return d
+            if key in ['mn%d-%s%d' % (i, mf, j) for i in range(1, 11) for j in range(1, 11) for mf in ['m', 'f']]:
+                update_dropdowns(window, key, males, females, values)
+    return males, females
 
 
 def event_loop():
-    # males, females = ['' for _ in range(10)], ['' for _ in range(10)]
-    males, females = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf'],\
-                     ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
-    possible_combinations = []
+    males, females = ['' for _ in range(10)], ['' for _ in range(10)]
+    # males, females = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf'],\
+    #                  ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
     rounds_dict = {}
     found_matches = []
     impossible_matches = []
+    possible_combinations = []
     all_couples = []
     # Window
     sg.theme('DarkAmber')
@@ -213,7 +280,7 @@ def event_loop():
             else:
                 sg.popup('There are missing candidates')
         elif event in ['Save%d' % i for i in range(10)]:
-            save_rounds(event, values, rounds_dict, found_matches, impossible_matches, males, females)
+            save_round(int(event[-1]) + 1, values, rounds_dict, found_matches, impossible_matches, males, females, window)
         elif event == 'SaveFile':
             save_to_json(values)
         elif event in ['Calculate%d' % i for i in range(10)] + ['Calculate']:
@@ -227,18 +294,25 @@ def event_loop():
         elif event == 'Load':
             file = values[event]
             if file != '':
-                rounds_dict = load_from_json(window, file)
+                males, females = load_from_json(window, file, values)
+                # reload_saved_data(window, males, females)
+                for i in range(1, 11):
+                    save_round(i, values, rounds_dict, found_matches, impossible_matches, males, females, window)
+        elif event in ['mn%d-%s%d' % (i, mf, j) for i in range(1, 11) for j in range(1, 11) for mf in ['m', 'f']]:
+            update_dropdowns(window, event, males, females, values)
+        elif event == 'Clear':
+            found_matches, impossible_matches, males, females = [], [], ['' for _ in range(10)], ['' for _ in range(10)]
+            rounds_dict = {}
+            window.close()
+            window = new_window(males, females)
     window.close()
 
     # TODO:
     # - Wahrscheinlichkeiten für beliebiges match nach aktuellem Wissensstand
-    # - Perfect Matches automatisch eintragen
-    # - clear Button/clear all
     # - Namen fixen - warum kein Match?
-    # - warum 0 Kombinationen?
     # - Option Männer/Damenwahl
-    # - Autovervollständigung Dropdowns? Geht das?
 
 
 if __name__ == '__main__':
+    version = '1.0'
     event_loop()
