@@ -40,7 +40,6 @@ def get_round_layout(_round, _males, _females, col_size):
            ]
     output = [[sg.Multiline(key='OUT%d' % _round, size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))]]
     return [[sg.Column(col1, size=col_size), sg.Column(output, size=col_size)]]
-    # return col1
 
 
 def get_main_layout(_males, _females, col_size):
@@ -53,9 +52,16 @@ def get_main_layout(_males, _females, col_size):
                               size=(20, 1), key='%s-%d' % ('m' if col == 1 else 'f', row), pad=(5, 8))
                 for col in range(4)] for row in range(1, 11)]
     footer = [[sg.Button("Save", size=(10, 1), pad=(35, (10, 5)), key='Save'),
-               sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate')],
-              [sg.Button("Load", size=(10, 1), key='Load', disabled=True)]]
-    output = [[sg.Multiline(key='OUT0', size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))]]
+               sg.Button("Calculate", size=(10, 1), pad=(35, (10, 5)), key='Calculate')]]
+    output = [
+        [
+            sg.Multiline(key='OUT0', size=(50, 28), background_color='black', pad=((10, 0), (20, 10)))
+        ], [
+            sg.FileSaveAs("Save to File", size=(10, 1), pad=(35, (10, 5)), key='SaveFile',
+                          file_types=(("Text File", "*.txt"),), enable_events=True, target='SaveFile'),
+            sg.FileBrowse("Load from File", size=(10, 1), pad=(35, (10, 5)), key='Load', initial_folder='./',
+                          file_types=(("Text File", "*.txt"),), enable_events=True, target='Load')
+        ]]
     layout = [[sg.Column(header + content + footer, size=col_size), sg.Column(output, size=col_size)]]
     return layout
 
@@ -72,7 +78,7 @@ def get_layout(_males, _females):
                           sg.Tab('Candidates', get_main_layout(_males, _females, col_size)),
                       ] + [sg.Tab('Round %d' % r, get_round_layout(r, _males, _females, col_size)) for r in range(1, 11)]
                       + [sg.Text('Version 0.9')]
-                      ])
+                      ], key="tab")
          ]
     ]
 
@@ -128,7 +134,7 @@ def get_pretty_pair_print(pairs, ranked):
     for i in range(len(pairs)):
         if ranked:
             st += '%d. ' % (i+1)
-        st += '%s and %s\n' % (pairs[i][0], pairs[i][1])
+        st += '%s and %s\n' % (pairs[i][0][0], pairs[i][0][1])
     return st
 
 
@@ -149,8 +155,8 @@ def update_outputs(window, found_matches, impossible_matches, possible_combinati
     for i in range(11):
         # window['OUT%d' % i]('')
         window['OUT%d' % i].print(text)
-        window['OUT%d' % i].print(found, text_color='green')
         window['OUT%d' % i].print(impossible, text_color='red')
+        window['OUT%d' % i].print(found, text_color='green')
         window['OUT%d' % i].print(combs, text_color='white')
         window['OUT%d' % i].print(top_5_most_likely_matches, text_color='green')
         window['OUT%d' % i].print(top_5_least_likely_matches, text_color='red')
@@ -162,24 +168,28 @@ def save_rounds(event, values, rounds_dict, found_matches, impossible_matches, m
 
 
 def save_to_json(dictionary):
-    with open("save.txt", 'w') as file:
-        file.seek(0)
-        json.dump(dictionary, file)
-        file.truncate()
+    file = dictionary['SaveFile']
+    if file != '':
+        del dictionary['SaveFile']
+        del dictionary['Load']
+        with open(file, 'w') as file:
+            file.seek(0)
+            json.dump(dictionary, file)
+            file.truncate()
 
 
-def load_from_json(window):
-    d = json.load(open("save.txt"))
+def load_from_json(window, file):
+    d = json.load(open(file))
     for key, value in d.items():
-        # FIXME: load to text fields does not work (radio buttons, slider, inputs and dropdowns already work!)
-        window[key].update(value)
+        if key not in ['SaveFile', 'Load']:
+            window[key].update(value)
     return d
 
 
 def event_loop():
-    males, females = ['' for _ in range(10)], ['' for _ in range(10)]
-    # males, females = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf'],\
-    #                  ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
+    # males, females = ['' for _ in range(10)], ['' for _ in range(10)]
+    males, females = ['Abraham', 'Bernd', 'Carl', 'Detlef', 'Emil', 'Farad', 'Gerald', 'Hugo', 'Ingo', 'Jusuf'],\
+                     ['Anna', 'Birte', 'Clementine', 'Demi', 'Eva', 'Franziska', 'Gertrud', 'Hannah', 'Inge', 'Josefine']
     possible_combinations = []
     rounds_dict = {}
     found_matches = []
@@ -200,11 +210,11 @@ def event_loop():
             reload_saved_data(window, males, females)
             if all_filled(males) and all_filled(females):
                 close_input_fields(window)
-                save_to_json(values)
             else:
                 sg.popup('There are missing candidates')
         elif event in ['Save%d' % i for i in range(10)]:
             save_rounds(event, values, rounds_dict, found_matches, impossible_matches, males, females)
+        elif event == 'SaveFile':
             save_to_json(values)
         elif event in ['Calculate%d' % i for i in range(10)] + ['Calculate']:
             possible_combinations, found_matches, impossible_matches = \
@@ -215,15 +225,19 @@ def event_loop():
             impossible_matches += more_impossible_matches
             update_outputs(window, found_matches, impossible_matches, possible_combinations, couple_ranking)
         elif event == 'Load':
-            # file walker -> chose file to save and to load from
-            if os.path.isfile("save.txt"):
-                rounds_dict = load_from_json(window)
+            file = values[event]
+            if file != '':
+                rounds_dict = load_from_json(window, file)
     window.close()
 
     # TODO:
-    # - load data from file
-    # - wahrscheinlichkeiten für beliebiges match nach aktuellem Wissensstand
+    # - Wahrscheinlichkeiten für beliebiges match nach aktuellem Wissensstand
     # - Perfect Matches automatisch eintragen
+    # - clear Button/clear all
+    # - Namen fixen - warum kein Match?
+    # - warum 0 Kombinationen?
+    # - Option Männer/Damenwahl
+    # - Autovervollständigung Dropdowns? Geht das?
 
 
 if __name__ == '__main__':

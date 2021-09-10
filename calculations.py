@@ -1,4 +1,5 @@
-from statistics import common_members
+def common_members(combination, matching_night_set, beams):
+    return len(set(tuple(x) for x in combination).intersection(matching_night_set)) == beams
 
 
 def is_possible(combination, matching_night):
