@@ -1,8 +1,7 @@
 import PySimpleGUI as sg
 import json
-import os.path
 
-from Round import Round
+from src.Round import Round
 from calculations import calculate_possibilities, rank_possible_couples, get_all_couples
 
 
